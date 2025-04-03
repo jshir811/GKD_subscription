@@ -292,6 +292,7 @@ export default defineGkdApp({
       desc: '点击关闭-点击[不感兴趣]/[不想看到此类内容]',
       fastQuery: true,
       activityIds: [
+        '.feed.DetailWeiboActivity',
         '.feed.detailrefactor.DetailPageActivity',
         '.story.gallery.feed.StoryFeedCommentsActivity2',
       ],
