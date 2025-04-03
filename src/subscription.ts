@@ -19,10 +19,10 @@ apps.forEach((appConfig) => {
 });
 
 export default defineGkdSubscription({
-  id: 666,
-  name: 'AIsouler的GKD订阅-禁止传播',
+  id: 6666,
+  name: 'jshir811的GKD订阅-禁止传播',
   version: 0,
-  author: 'AIsouler',
+  author: 'jshir811',
   checkUpdateUrl: './AIsouler_gkd.version.json5',
   supportUri: 'https://github.com/AIsouler/GKD_subscription/issues/new/choose',
   categories,
