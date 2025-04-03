@@ -39,9 +39,7 @@ export default defineGkdApp({
             '[text="太多重复或相似内容"][clickable=true]',
             '@LinearLayout[clickable=true] >2 [text="太多重复或相似内容" || text="不想看到此类内容"]',
           ],
-          snapshotUrls: [
-            'https://i.gkd.li/i/19580404',
-          ],
+          snapshotUrls: ['https://i.gkd.li/i/19580404'],
         },
       ],
     },
