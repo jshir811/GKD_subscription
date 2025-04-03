@@ -115,6 +115,7 @@ export default defineGkdApp({
       activityIds: [
         '.feed.DetailWeiboActivity',
         '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
       ],
       rules: [
         {
