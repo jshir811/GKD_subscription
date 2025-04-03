@@ -9,13 +9,14 @@ export default defineGkdApp({
       name: '局部广告-卡片广告',
       desc: '点击右上角关闭',
       fastQuery: true,
+      activityIds: [
+        '.feed.DetailWeiboActivity',
+        '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
+      ],
       rules: [
         {
           key: 1,
-          activityIds: [
-            'com.sina.weibo.feed.DetailWeiboActivity',
-            '.feed.detailrefactor.DetailPageActivity',
-          ],
           matches:
             '[vid="left_video_container"] + LinearLayout >2 [vid="close"][visibleToUser=true]',
           snapshotUrls: [
@@ -25,10 +26,22 @@ export default defineGkdApp({
         },
         {
           key: 4,
-          activityIds: '.feed.detailrefactor.DetailPageActivity',
           matches: '@[vid="closeButton"] > [text="广告"][visibleToUser=true]',
           exampleUrls: 'https://e.gkd.li/6952c2d1-65b5-4419-adb6-ba0f6349801e',
           snapshotUrls: 'https://i.gkd.li/i/19538265',
+        },
+        // 预留key
+        {
+          preKeys: [4],
+          key: 5,
+          matchRoot: true,
+          anyMatches: [
+            '[text="太多重复或相似内容"][clickable=true]',
+            '@LinearLayout[clickable=true] >2 [text="太多重复或相似内容" || text="不想看到此类内容"]',
+          ],
+          snapshotUrls: [
+            'https://i.gkd.li/i/19580404',
+          ],
         },
       ],
     },
@@ -141,6 +154,7 @@ export default defineGkdApp({
       activityIds: [
         '.feed.DetailWeiboActivity',
         '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
       ],
       rules: [
         {
