@@ -8,74 +8,87 @@ on:
 jobs:
   build_release:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      changes_detected: ${{ steps.changes.outputs.changed }}
     steps:
+      # 1. 检出代码（必须获取完整提交历史）
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # 关键：获取全部提交历史
 
-      - name: Get previous tag or default to changed=true
-        id: previous_tag
+      # 2. 读取上一次成功构建的缓存
+      - name: Restore last build SHA
+        id: restore-cache
+        uses: actions/cache@v3
+        with:
+          path: .last_build_sha
+          key: build-${{ github.ref }}-last-successful-sha
+
+      # 3. 获取当前提交的 SHA
+      - name: Get current SHA
+        id: current-sha
         run: |
-          prev_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "current_sha=$CURRENT_SHA" >> $GITHUB_ENV
+          echo "Current SHA: $CURRENT_SHA"
 
-          if [ "$prev_tag" == "none" ]; then
-            echo "No tags found. Setting changed=true by default."
-            echo "changed=true" >> $GITHUB_ENV
+      # 4. 检查是否有缓存（是否第一次运行）
+      - name: Check cache status
+        id: check-cache
+        run: |
+          if [ -f .last_build_sha ]; then
+            LAST_SHA=$(cat .last_build_sha)
+            echo "last_sha=$LAST_SHA" >> $GITHUB_ENV
+            echo "Last SHA from cache: $LAST_SHA"
           else
-            echo "Previous tag: $prev_tag"
-            echo "previous_tag=$prev_tag" >> $GITHUB_ENV
+            echo "首次运行，无历史记录"
+            echo "last_sha=none" >> $GITHUB_ENV
           fi
 
-      - name: Check for changes between previous tag and latest commit in src directory
-        id: changes
+      # 5. 比较两次运行之间的 src 变更
+      - name: Check src changes
+        id: check-changes
         run: |
-          if [ "$prev_tag" != "none" ]; then
-            if git diff --exit-code ${{ env.previous_tag }} HEAD -- src; then
-              echo "No changes detected in 'src' directory between ${{ env.previous_tag }} and the latest commit."
+          if [ "${{ env.last_sha }}" == "none" ]; then
+            # 首次运行，强制触发构建
+            echo "changed=true" >> $GITHUB_ENV
+          else
+            # 比较两次提交的差异
+            if git diff --exit-code ${{ env.last_sha }} ${{ env.current_sha }} -- src; then
+              echo "No changes detected in 'src' directory."
               echo "changed=false" >> $GITHUB_ENV
             else
-              echo "Changes detected in 'src' directory between ${{ env.previous_tag }} and the latest commit."
+              echo "Changes detected in 'src' directory."
               echo "changed=true" >> $GITHUB_ENV
             fi
           fi
 
-      - name: Terminate if no changes detected
+      # 6. 若无变更则终止流程
+      - name: Terminate if no changes
         if: env.changed != 'true'
         run: |
-          echo "No changes in 'src' directory, terminating the workflow."
+          echo "No changes since last successful build, terminating workflow."
           exit 1
 
+      # 7. 正常执行构建流程（保持你的原有步骤）
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - uses: pnpm/action-setup@v4
-
       - run: pnpm install
-
       - run: pnpm run build
-
       - id: version
         run: |
           version=$(node -e "import('@gkd-kit/tools').then((m) => m.stdoutGkdVersion());")
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-
       - id: update_pkg_version
         run: node -e "import('@gkd-kit/tools').then((m) => m.updatePkgVersion());"
-
       - name: Git commit
         id: commit
         run: |
           git config --local user.email github-actions[bot]@users.noreply.github.com
           git config --local user.name github-actions[bot]
-          git status
           git add .
-          git commit -a -m "chore: v${{steps.version.outputs.version}}"
+          git commit -a -m "chore: v${{ steps.version.outputs.version }}"
         continue-on-error: true
-
       - name: Git push
         if: ${{ steps.commit.outcome == 'success' }}
         uses: ad-m/github-push-action@master
@@ -83,7 +96,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.ref }}
           tags: true
-
       - name: Create Release
         id: create_release
         if: ${{ steps.commit.outcome == 'success' }}
@@ -94,7 +106,6 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           release_name: Release ${{ steps.version.outputs.version }}
           body_path: ./dist/CHANGELOG.md
-
       - name: Publish package
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -103,3 +114,15 @@ jobs:
           pnpm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
           pnpm publish --no-git-checks
           node -e "import('@gkd-kit/tools').then((m) => m.syncNpmmirror());"
+
+      # 8. 仅在构建成功后更新缓存
+      - name: Save current SHA to cache
+        if: success()  # 仅当构建成功时保存
+        run: |
+          echo ${{ env.current_sha }} > .last_build_sha
+      - name: Upload new cache
+        uses: actions/cache@v3
+        if: success()
+        with:
+          path: .last_build_sha
+          key: build-${{ github.ref }}-last-successful-sha
