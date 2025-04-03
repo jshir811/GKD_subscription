@@ -9,13 +9,14 @@ export default defineGkdApp({
       name: '局部广告-卡片广告',
       desc: '点击右上角关闭',
       fastQuery: true,
+      activityIds: [
+        '.feed.DetailWeiboActivity',
+        '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
+      ],
       rules: [
         {
           key: 1,
-          activityIds: [
-            'com.sina.weibo.feed.DetailWeiboActivity',
-            '.feed.detailrefactor.DetailPageActivity',
-          ],
           matches:
             '[vid="left_video_container"] + LinearLayout >2 [vid="close"][visibleToUser=true]',
           snapshotUrls: [
@@ -25,10 +26,59 @@ export default defineGkdApp({
         },
         {
           key: 4,
-          activityIds: '.feed.detailrefactor.DetailPageActivity',
           matches: '@[vid="closeButton"] > [text="广告"][visibleToUser=true]',
           exampleUrls: 'https://e.gkd.li/6952c2d1-65b5-4419-adb6-ba0f6349801e',
           snapshotUrls: 'https://i.gkd.li/i/19538265',
+        },
+        // 预留key
+        {
+          preKeys: [4],
+          key: 5,
+          matchRoot: true,
+          anyMatches: [
+            '[text="太多重复或相似内容"][clickable=true]',
+            '@LinearLayout[clickable=true] >2 [text="太多重复或相似内容" || text="不想看到此类内容"]',
+          ],
+          snapshotUrls: [
+            'https://i.gkd.li/i/19580404',
+          ],
+        },
+      ],
+    },
+    {
+      key: 6,
+      name: '分段广告-评论区博主内容推荐',
+      desc: '点击关闭-点击[不感兴趣]/[不想看到此类内容]',
+      fastQuery: true,
+      activityIds: [
+        '.feed.DetailWeiboActivity',
+        '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
+      ],
+      rules: [
+        {
+          key: 0,
+          matches: '@[vid="ll_close"] > [text="推荐"][visibleToUser=true]',
+          snapshotUrls: [
+            'https://i.gkd.li/i/19551446',
+            'https://i.gkd.li/i/19551850',
+            'https://i.gkd.li/i/19552278',
+          ],
+        },
+        // 预留key
+        {
+          preKeys: [0],
+          key: 45,
+          matchRoot: true,
+          anyMatches: [
+            '[text="不感兴趣"][clickable=true]',
+            '@LinearLayout[clickable=true] >2 [text="不感兴趣" || text="不想看到此类内容"]',
+          ],
+          snapshotUrls: [
+            'https://i.gkd.li/i/19551451',
+            'https://i.gkd.li/i/19551857',
+            'https://i.gkd.li/i/19552282',
+          ],
         },
       ],
     },
@@ -98,12 +148,13 @@ export default defineGkdApp({
     },
     {
       key: 17,
-      name: '分段广告-信息流广告',
+      name: '分段广告-评论区信息流广告',
       desc: '点击关闭-点击[不感兴趣]/[不想看到此类内容]',
       fastQuery: true,
       activityIds: [
         '.feed.DetailWeiboActivity',
         '.feed.detailrefactor.DetailPageActivity',
+        '.story.gallery.feed.StoryFeedCommentsActivity2',
       ],
       rules: [
         {
@@ -127,7 +178,6 @@ export default defineGkdApp({
           ],
           snapshotUrls: 'https://i.gkd.li/i/16828094',
         },
-
         // 预留key
         {
           preKeys: [0, 1, 3],
