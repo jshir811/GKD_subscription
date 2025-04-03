@@ -13,7 +13,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 恢复缓存和变更检测逻辑（保持原样）
       - name: Restore last build SHA
         id: restore-cache
         uses: actions/cache@v3
@@ -58,7 +57,6 @@ jobs:
             echo "⏩ 无变更，跳过构建步骤"
           fi
 
-      # 构建环境设置（保持原样）
       - name: Setup Node.js
         if: env.changed == 'true'
         uses: actions/setup-node@v4
@@ -73,32 +71,22 @@ jobs:
         if: env.changed == 'true'
         run: pnpm install
 
-      # ========== 核心修改部分 ==========
+      - name: Build project
+        if: env.changed == 'true'
+        run: pnpm run build
+
       - name: Generate timestamp version
         id: version
         run: |
-          # 生成北京时间时间戳版本号
+          # 生成北京时间的时间戳（格式：20241030153045）
           VERSION=$(TZ=Asia/Shanghai date +"%Y%m%d%H%M%S")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "生成的版本号: $VERSION"
 
-      - name: Update package.json version
+      - name: Update package version
         if: env.changed == 'true'
         id: update_pkg_version
-        run: |
-          # 使用 jq 工具更新 package.json 的版本号
-          npm install -g jq
-          jq --arg ver "${{ steps.version.outputs.version }}" '.version = $ver' package.json > temp.json
-          mv temp.json package.json
-
-          # 打印验证结果
-          echo "更新后的 package.json 版本号:"
-          cat package.json | jq .version
-
-      # ========== 后续步骤 ==========
-      - name: Build project
-        if: env.changed == 'true'
-        run: pnpm run build
+        run: echo "跳过 package.json 版本更新（按需调整）"
 
       - name: Git commit
         if: env.changed == 'true'
@@ -106,7 +94,6 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add package.json  # 明确添加 package.json
           git add .
           git commit -m "chore: 自动更新版本号至 ${{ steps.version.outputs.version }}" || echo "无变更可提交"
         continue-on-error: true
