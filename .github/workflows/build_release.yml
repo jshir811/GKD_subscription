@@ -75,7 +75,6 @@ jobs:
         if: env.changed == 'true'
         run: pnpm run build
 
-      # ========== 时间戳版本号生成与替换 ==========
       - name: Generate timestamp version
         id: version
         run: |
@@ -86,18 +85,21 @@ jobs:
       - name: Update JSON5 files
         if: env.changed == 'true'
         run: |
-          # 处理无引号版本 (AIsouler_gkd.json5)
-          sed -E -i "s/(version:)[[:space:]]*[0-9]+/\1${{ steps.version.outputs.version }}/g" dist/AIsouler_gkd.json5
-          
-          # 处理带引号版本 (AIsouler_gkd.version.json5)
+          # 精准替换 AIsouler_gkd.json5 文件开头的第一个 version: 字段（限定前20行）
+          sed -i -E '1,20 {/version:[[:space:]]*[0-9]+/ {
+              s/(version:)[[:space:]]*[0-9]+/\1'"${{ steps.version.outputs.version }}"'/;
+              :a; n; ba
+          }}' dist/AIsouler_gkd.json5
+
+          # 处理带引号的版本文件（全局替换）
           sed -E -i "s/(\"version\":)[[:space:]]*[0-9]+/\1${{ steps.version.outputs.version }}/g" dist/AIsouler_gkd.version.json5
-          
+
           # 验证替换结果
-          echo "==== 版本更新验证 ===="
-          echo "AIsouler_gkd.json5:"
-          grep "version:" dist/AIsouler_gkd.json5
-          echo "AIsouler_gkd.version.json5:"
-          grep "\"version\":" dist/AIsouler_gkd.version.json5
+          echo "==== 版本替换验证 ===="
+          echo "AIsouler_gkd.json5 开头版本号:"
+          head -n 20 dist/AIsouler_gkd.json5 | grep -m1 "version:"
+          echo "AIsouler_gkd.version.json5 版本号:"
+          grep -m1 "\"version\":" dist/AIsouler_gkd.version.json5
 
       - name: Git commit
         if: env.changed == 'true'
