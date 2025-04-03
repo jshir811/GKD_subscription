@@ -9,12 +9,11 @@ jobs:
   build_release:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码（必须获取完整提交历史）
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 关键：获取全部提交历史
+          fetch-depth: 0
 
-      # 2. 读取上一次成功构建的缓存
+      # 恢复缓存和变更检测逻辑（保持原样）
       - name: Restore last build SHA
         id: restore-cache
         uses: actions/cache@v3
@@ -22,107 +21,132 @@ jobs:
           path: .last_build_sha
           key: build-${{ github.ref }}-last-successful-sha
 
-      # 3. 获取当前提交的 SHA
       - name: Get current SHA
         id: current-sha
         run: |
           CURRENT_SHA=$(git rev-parse HEAD)
           echo "current_sha=$CURRENT_SHA" >> $GITHUB_ENV
-          echo "Current SHA: $CURRENT_SHA"
 
-      # 4. 检查是否有缓存（是否第一次运行）
       - name: Check cache status
         id: check-cache
         run: |
           if [ -f .last_build_sha ]; then
             LAST_SHA=$(cat .last_build_sha)
             echo "last_sha=$LAST_SHA" >> $GITHUB_ENV
-            echo "Last SHA from cache: $LAST_SHA"
           else
-            echo "首次运行，无历史记录"
             echo "last_sha=none" >> $GITHUB_ENV
           fi
 
-      # 5. 比较两次运行之间的 src 变更
       - name: Check src changes
         id: check-changes
         run: |
           if [ "${{ env.last_sha }}" == "none" ]; then
-            # 首次运行，强制触发构建
             echo "changed=true" >> $GITHUB_ENV
           else
-            # 比较两次提交的差异
             if git diff --exit-code ${{ env.last_sha }} ${{ env.current_sha }} -- src; then
-              echo "No changes detected in 'src' directory."
               echo "changed=false" >> $GITHUB_ENV
             else
-              echo "Changes detected in 'src' directory."
               echo "changed=true" >> $GITHUB_ENV
             fi
           fi
 
-      # 6. 若无变更则终止流程
-      - name: Terminate if no changes
-        if: env.changed != 'true'
+      - name: Log change status
         run: |
-          echo "No changes since last successful build, terminating workflow."
-          exit 1
+          if [ "${{ env.changed }}" == "true" ]; then
+            echo "✅ 检测到变更，继续构建流程"
+          else
+            echo "⏩ 无变更，跳过构建步骤"
+          fi
 
-      # 7. 正常执行构建流程（保持你的原有步骤）
-      - uses: actions/setup-node@v4
+      # 构建环境设置（保持原样）
+      - name: Setup Node.js
+        if: env.changed == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: pnpm/action-setup@v4
-      - run: pnpm install
-      - run: pnpm run build
-      - id: version
+
+      - name: Setup pnpm
+        if: env.changed == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        if: env.changed == 'true'
+        run: pnpm install
+
+      # ========== 核心修改部分 ==========
+      - name: Generate timestamp version
+        id: version
         run: |
-          version=$(node -e "import('@gkd-kit/tools').then((m) => m.stdoutGkdVersion());")
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-      - id: update_pkg_version
-        run: node -e "import('@gkd-kit/tools').then((m) => m.updatePkgVersion());"
+          # 生成北京时间时间戳版本号
+          VERSION=$(TZ=Asia/Shanghai date +"%Y%m%d%H%M%S")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "生成的版本号: $VERSION"
+
+      - name: Update package.json version
+        if: env.changed == 'true'
+        id: update_pkg_version
+        run: |
+          # 使用 jq 工具更新 package.json 的版本号
+          npm install -g jq
+          jq --arg ver "${{ steps.version.outputs.version }}" '.version = $ver' package.json > temp.json
+          mv temp.json package.json
+
+          # 打印验证结果
+          echo "更新后的 package.json 版本号:"
+          cat package.json | jq .version
+
+      # ========== 后续步骤 ==========
+      - name: Build project
+        if: env.changed == 'true'
+        run: pnpm run build
+
       - name: Git commit
+        if: env.changed == 'true'
         id: commit
         run: |
-          git config --local user.email github-actions[bot]@users.noreply.github.com
-          git config --local user.name github-actions[bot]
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package.json  # 明确添加 package.json
           git add .
-          git commit -a -m "chore: v${{ steps.version.outputs.version }}"
+          git commit -m "chore: 自动更新版本号至 ${{ steps.version.outputs.version }}" || echo "无变更可提交"
         continue-on-error: true
+
       - name: Git push
-        if: ${{ steps.commit.outcome == 'success' }}
+        if: env.changed == 'true' && steps.commit.outcome == 'success'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.ref }}
           tags: true
+
       - name: Create Release
+        if: env.changed == 'true' && steps.commit.outcome == 'success'
         id: create_release
-        if: ${{ steps.commit.outcome == 'success' }}
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
           release_name: Release ${{ steps.version.outputs.version }}
-          body_path: ./dist/CHANGELOG.md
+          body: "基于时间戳的自动构建版本"
+
       - name: Publish package
+        if: env.changed == 'true' && steps.commit.outcome == 'success' && env.NPM_TOKEN != ''
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        if: ${{ steps.commit.outcome == 'success' && env.NPM_TOKEN != '' }}
         run: |
           pnpm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
           pnpm publish --no-git-checks
           node -e "import('@gkd-kit/tools').then((m) => m.syncNpmmirror());"
 
-      # 8. 仅在构建成功后更新缓存
       - name: Save current SHA to cache
-        if: success()  # 仅当构建成功时保存
+        if: success() && env.changed == 'true'
         run: |
           echo ${{ env.current_sha }} > .last_build_sha
+
       - name: Upload new cache
+        if: success() && env.changed == 'true'
         uses: actions/cache@v3
-        if: success()
         with:
           path: .last_build_sha
           key: build-${{ github.ref }}-last-successful-sha
