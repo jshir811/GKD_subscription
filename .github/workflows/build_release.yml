@@ -75,22 +75,27 @@ jobs:
         if: env.changed == 'true'
         run: pnpm run build
 
-      - name: Generate timestamp version
+      # ========== 修改版本号生成规则 ==========
+      - name: Generate short year version
         id: version
         run: |
-          VERSION=$(TZ=Asia/Shanghai date +"%Y%m%d%H%M%S")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "生成的时间戳版本号: $VERSION"
+          # 生成完整时间戳（格式：20250403153045）
+          FULL_VERSION=$(TZ=Asia/Shanghai date +"%Y%m%d%H%M%S")
+          
+          # 截取年份最后1位 + 后续部分（格式：50403153045）
+          SHORT_VERSION="${FULL_VERSION:3}"
+          echo "version=$SHORT_VERSION" >> $GITHUB_OUTPUT
+          echo "生成的短年份版本号: $SHORT_VERSION"
 
       - name: Update JSON5 files
         if: env.changed == 'true'
         run: |
-          # 替换 AIsouler_gkd.json5 的第一个 version 字段（单行文件）
+          # 替换 AIsouler_gkd.json5（单行文件）
           sed -i -E "s/(version:)[0-9]+/\1${{ steps.version.outputs.version }}/" dist/AIsouler_gkd.json5
-
-          # 替换 AIsouler_gkd.version.json5 的 version 字段（无引号）
+          
+          # 替换 AIsouler_gkd.version.json5（单行文件）
           sed -i -E "s/(version:)[0-9]+/\1${{ steps.version.outputs.version }}/" dist/AIsouler_gkd.version.json5
-
+          
           # 验证结果
           echo "==== 替换验证 ===="
           echo "AIsouler_gkd.json5:"
@@ -125,7 +130,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           release_name: Release ${{ steps.version.outputs.version }}
-          body: "基于时间戳的自动构建版本"
+          body: "基于短年份时间戳的自动构建版本"
 
       - name: Publish package
         if: env.changed == 'true' && steps.commit.outcome == 'success' && env.NPM_TOKEN != ''
